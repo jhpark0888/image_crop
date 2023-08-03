@@ -16,9 +16,10 @@ class Crop extends StatefulWidget {
   final double maximumScale;
   final bool alwaysShowGrid;
   final bool circleShape;
-  final double maxCropAspectRatio;
-  final double minCropAspectRatio;
+  final double? maxCropAspectRatio;
+  final double? minCropAspectRatio;
   final ImageErrorListener? onImageError;
+  final Widget Function(bool isExpanded)? resizeButtonBuilder;
 
   const Crop({
     Key? key,
@@ -29,8 +30,9 @@ class Crop extends StatefulWidget {
     this.height,
     this.alwaysShowGrid = false,
     this.circleShape = false,
-    this.maxCropAspectRatio = 1.2,
-    this.minCropAspectRatio = 0.8,
+    this.maxCropAspectRatio,
+    this.minCropAspectRatio,
+    this.resizeButtonBuilder,
     this.onImageError,
   }) : super(key: key);
 
@@ -44,8 +46,9 @@ class Crop extends StatefulWidget {
     this.maximumScale = 2.0,
     this.alwaysShowGrid = false,
     this.circleShape = false,
-    this.maxCropAspectRatio = 1.2,
-    this.minCropAspectRatio = 0.8,
+    this.maxCropAspectRatio,
+    this.minCropAspectRatio,
+    this.resizeButtonBuilder,
     this.onImageError,
   })  : image = FileImage(file, scale: scale),
         super(key: key);
@@ -61,8 +64,9 @@ class Crop extends StatefulWidget {
     this.maximumScale = 2.0,
     this.alwaysShowGrid = false,
     this.circleShape = false,
-    this.maxCropAspectRatio = 1.2,
-    this.minCropAspectRatio = 0.8,
+    this.maxCropAspectRatio,
+    this.minCropAspectRatio,
+    this.resizeButtonBuilder,
     this.onImageError,
   })  : image = AssetImage(assetName, bundle: bundle, package: package),
         super(key: key);
@@ -79,6 +83,9 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
 
   late final AnimationController _activeController;
   late final AnimationController _settleController;
+
+  late double maxCropAspectRatio;
+  late double minCropAspectRatio;
 
   double _scale = 1.0;
   double _ratio = 1.0;
@@ -99,6 +106,7 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
   ImageStreamListener? _imageListener;
 
   double get scale => _scale;
+  bool get _isExpanded => _scale >= 1.0;
 
   set scale(double scale) {
     _scale = scale;
@@ -139,6 +147,14 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
     )..addListener(() => setState(() {}));
     _settleController = AnimationController(vsync: this)
       ..addListener(_settleAnimationChanged);
+
+    if (widget.maxCropAspectRatio != null) {
+      maxCropAspectRatio = widget.maxCropAspectRatio!;
+    }
+
+    if (widget.minCropAspectRatio != null) {
+      minCropAspectRatio = widget.minCropAspectRatio!;
+    }
   }
 
   @override
@@ -201,6 +217,79 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
     }
   }
 
+  void setMaxSizeArea() {
+    if (_boundaries == null) return;
+    if (_image == null) return;
+
+    _area = _calculateArea(
+      viewWidth: _view.width,
+      viewHeight: _view.height,
+      imageWidth: _image!.width,
+      imageHeight: _image!.height,
+    );
+
+    _scale = 1.0;
+    _view = Rect.fromLTWH(
+      (_view.width - 1.0) / 2,
+      (_view.height - 1.0) / 2,
+      _view.width,
+      _view.height,
+    );
+  }
+
+  void setMinSizeArea() {
+    if (_boundaries == null) return;
+    if (_image == null) return;
+
+    _area = _calculateArea(
+      viewWidth: _view.width,
+      viewHeight: _view.height,
+      imageWidth: _image!.width,
+      imageHeight: _image!.height,
+      aspectRatioFromScale:
+          _imageAspectRatio > 1.0 ? maxCropAspectRatio : minCropAspectRatio,
+    );
+
+    _scale = _minimumScale ?? _scale;
+    _view = _getViewInBoundaries(_scale);
+  }
+
+  void resizeArea() {
+    setState(() {
+      if (_isExpanded) {
+        setMinSizeArea();
+      } else {
+        setMaxSizeArea();
+      }
+    });
+  }
+
+  Widget _buildReSizeButton() {
+    return RawGestureDetector(
+      gestures: {
+        _EagerTapGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<_EagerTapGestureRecognizer>(
+                () => _EagerTapGestureRecognizer(),
+                (_EagerTapGestureRecognizer instance) {
+          instance.onTap = resizeArea;
+        }),
+      },
+      child: widget.resizeButtonBuilder?.call(_isExpanded) ??
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.white.withOpacity(0.8),
+            ),
+            child: Icon(
+              _isExpanded
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+              size: 30,
+            ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -224,16 +313,27 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
               },
             ),
           },
-          child: CustomPaint(
-            painter: _CropPainter(
-              image: _image,
-              ratio: _ratio,
-              view: _view,
-              area: _area,
-              scale: _scale,
-              active: _activeController.value,
-              circleShape: widget.circleShape,
-            ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _CropPainter(
+                    image: _image,
+                    ratio: _ratio,
+                    view: _view,
+                    area: _area,
+                    scale: _scale,
+                    active: _activeController.value,
+                    circleShape: widget.circleShape,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 20,
+                bottom: 20,
+                child: _buildReSizeButton(),
+              ),
+            ],
           ),
         ),
       ),
@@ -340,6 +440,7 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
 
   void _updateImage(ImageInfo imageInfo, bool synchronousCall) {
     final boundaries = _boundaries;
+
     if (boundaries == null) {
       return;
     }
@@ -347,7 +448,15 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       final image = imageInfo.image;
 
+      // 이미지 비율만큼 최소 또는 최대 비율 조정
       _imageAspectRatio = image.width / image.height;
+      if (widget.maxCropAspectRatio == null && _imageAspectRatio > 1.0) {
+        maxCropAspectRatio = _imageAspectRatio;
+      }
+
+      if (widget.minCropAspectRatio == null && _imageAspectRatio <= 1.0) {
+        minCropAspectRatio = _imageAspectRatio;
+      }
 
       setState(() {
         _image = image;
@@ -359,18 +468,27 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
 
         final viewWidth = boundaries.width / (image.width * _scale * _ratio);
         final viewHeight = boundaries.height / (image.height * _scale * _ratio);
+
         _area = _calculateArea(
           viewWidth: viewWidth,
           viewHeight: viewHeight,
           imageWidth: image.width,
           imageHeight: image.height,
+          // 이미지 비율 만큼 _area를 맞추는 로직
+          aspectRatioFromScale:
+              _imageAspectRatio > 1.0 ? maxCropAspectRatio : minCropAspectRatio,
         );
+
         _view = Rect.fromLTWH(
           (viewWidth - 1.0) / 2,
           (viewHeight - 1.0) / 2,
           viewWidth,
           viewHeight,
         );
+
+        // 이미지 사이즈 만큼 _view를 맞추는 로직
+        _scale = _minimumScale ?? _scale;
+        _view = _getViewInBoundaries(_scale);
       });
     });
 
@@ -481,8 +599,8 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
             : widget.aspectRatio ?? 1.0 * _scale;
 
         double aspectRatio = _imageAspectRatio > 1.0
-            ? min(widget.maxCropAspectRatio, max(1.0, aspectRatioWithScale))
-            : max(widget.minCropAspectRatio, min(1.0, aspectRatioWithScale));
+            ? min(maxCropAspectRatio, max(1.0, aspectRatioWithScale))
+            : max(minCropAspectRatio, min(1.0, aspectRatioWithScale));
 
         final dx = boundaries.width *
             (1.0 - details.scale) /
@@ -663,6 +781,14 @@ class _CropPainter extends CustomPainter {
 }
 
 class _EagerScaleGestureRecognizer extends ScaleGestureRecognizer {
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
+  }
+}
+
+class _EagerTapGestureRecognizer extends TapGestureRecognizer {
   @override
   void addAllowedPointer(PointerDownEvent event) {
     super.addAllowedPointer(event);
