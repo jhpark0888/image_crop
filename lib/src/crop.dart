@@ -16,6 +16,7 @@ class Crop extends StatefulWidget {
   final double maximumScale;
   final bool alwaysShowGrid;
   final bool circleShape;
+  final bool isExpandImageInit;
   final double? maxCropAspectRatio;
   final double? minCropAspectRatio;
   final ImageErrorListener? onImageError;
@@ -30,6 +31,7 @@ class Crop extends StatefulWidget {
     this.height,
     this.alwaysShowGrid = false,
     this.circleShape = false,
+    this.isExpandImageInit = false,
     this.maxCropAspectRatio,
     this.minCropAspectRatio,
     this.resizeButtonBuilder,
@@ -46,6 +48,7 @@ class Crop extends StatefulWidget {
     this.maximumScale = 2.0,
     this.alwaysShowGrid = false,
     this.circleShape = false,
+    this.isExpandImageInit = false,
     this.maxCropAspectRatio,
     this.minCropAspectRatio,
     this.resizeButtonBuilder,
@@ -64,6 +67,7 @@ class Crop extends StatefulWidget {
     this.maximumScale = 2.0,
     this.alwaysShowGrid = false,
     this.circleShape = false,
+    this.isExpandImageInit = false,
     this.maxCropAspectRatio,
     this.minCropAspectRatio,
     this.resizeButtonBuilder,
@@ -84,8 +88,9 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
   late final AnimationController _activeController;
   late final AnimationController _settleController;
 
-  late double maxCropAspectRatio;
-  late double minCropAspectRatio;
+  double maxCropAspectRatio = 1;
+  double minCropAspectRatio = 1;
+  bool showResizeButton = false;
 
   double _scale = 1.0;
   double _ratio = 1.0;
@@ -155,6 +160,8 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
     if (widget.minCropAspectRatio != null) {
       minCropAspectRatio = widget.minCropAspectRatio!;
     }
+
+    checkShowResizeButton();
   }
 
   @override
@@ -246,7 +253,7 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
       viewHeight: _view.height,
       imageWidth: _image!.width,
       imageHeight: _image!.height,
-      aspectRatioFromScale:
+      imageAspectRatio:
           _imageAspectRatio > 1.0 ? maxCropAspectRatio : minCropAspectRatio,
     );
 
@@ -290,6 +297,12 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
     );
   }
 
+  void checkShowResizeButton() {
+    if (maxCropAspectRatio != 1 || minCropAspectRatio != 1) {
+      showResizeButton = true;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -328,11 +341,12 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-              Positioned(
-                left: 20,
-                bottom: 20,
-                child: _buildReSizeButton(),
-              ),
+              if (showResizeButton)
+                Positioned(
+                  left: 20,
+                  bottom: 20,
+                  child: _buildReSizeButton(),
+                ),
             ],
           ),
         ),
@@ -398,14 +412,14 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
     required int? imageHeight,
     required double viewWidth,
     required double viewHeight,
-    double? aspectRatioFromScale,
+    double? imageAspectRatio,
   }) {
     if (imageWidth == null || imageHeight == null) {
       return Rect.zero;
     }
 
     final double aspectRatioValue =
-        aspectRatioFromScale ?? widget.aspectRatio ?? 1.0;
+        imageAspectRatio ?? widget.aspectRatio ?? 1.0;
 
     double height;
     double width;
@@ -458,6 +472,8 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
         minCropAspectRatio = _imageAspectRatio;
       }
 
+      checkShowResizeButton();
+
       setState(() {
         _image = image;
         _scale = imageInfo.scale;
@@ -469,14 +485,22 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
         final viewWidth = boundaries.width / (image.width * _scale * _ratio);
         final viewHeight = boundaries.height / (image.height * _scale * _ratio);
 
+        // 처음 이미지를 선택 했을 때의 이미지 비율
+        double imageAspectRatio = widget.isExpandImageInit
+            // 영역에 맞게 확장
+            ? 1
+            // 이미지 비율 만큼
+            : _imageAspectRatio > 1.0
+                ? maxCropAspectRatio
+                : minCropAspectRatio;
+
         _area = _calculateArea(
           viewWidth: viewWidth,
           viewHeight: viewHeight,
           imageWidth: image.width,
           imageHeight: image.height,
           // 이미지 비율 만큼 _area를 맞추는 로직
-          aspectRatioFromScale:
-              _imageAspectRatio > 1.0 ? maxCropAspectRatio : minCropAspectRatio,
+          imageAspectRatio: imageAspectRatio,
         );
 
         _view = Rect.fromLTWH(
@@ -621,7 +645,7 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
           viewHeight: _view.height,
           imageWidth: image.width,
           imageHeight: image.height,
-          aspectRatioFromScale: aspectRatio,
+          imageAspectRatio: aspectRatio,
         );
       });
     }
