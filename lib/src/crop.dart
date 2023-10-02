@@ -19,6 +19,7 @@ class Crop extends StatefulWidget {
   final bool isExpandImageInit;
   final double? maxCropAspectRatio;
   final double? minCropAspectRatio;
+  final Color gridColor;
   final ImageErrorListener? onImageError;
   final Widget Function(bool isExpanded)? resizeButtonBuilder;
 
@@ -35,6 +36,7 @@ class Crop extends StatefulWidget {
     this.maxCropAspectRatio,
     this.minCropAspectRatio,
     this.resizeButtonBuilder,
+    this.gridColor = _kCropGridColor,
     this.onImageError,
   }) : super(key: key);
 
@@ -52,6 +54,7 @@ class Crop extends StatefulWidget {
     this.maxCropAspectRatio,
     this.minCropAspectRatio,
     this.resizeButtonBuilder,
+    this.gridColor = _kCropGridColor,
     this.onImageError,
   })  : image = FileImage(file, scale: scale),
         super(key: key);
@@ -71,6 +74,7 @@ class Crop extends StatefulWidget {
     this.maxCropAspectRatio,
     this.minCropAspectRatio,
     this.resizeButtonBuilder,
+    this.gridColor = _kCropGridColor,
     this.onImageError,
   })  : image = AssetImage(assetName, bundle: bundle, package: package),
         super(key: key);
@@ -337,6 +341,7 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
                     area: _area,
                     scale: _scale,
                     active: _activeController.value,
+                    gridColor: widget.gridColor,
                     circleShape: widget.circleShape,
                   ),
                 ),
@@ -660,6 +665,7 @@ class _CropPainter extends CustomPainter {
   final double scale;
   final double active;
   final bool circleShape;
+  final Color gridColor;
 
   _CropPainter({
     required this.image,
@@ -669,6 +675,7 @@ class _CropPainter extends CustomPainter {
     required this.scale,
     required this.active,
     required this.circleShape,
+    required this.gridColor,
   });
 
   @override
@@ -771,7 +778,7 @@ class _CropPainter extends CustomPainter {
 
     final paint = Paint()
       ..isAntiAlias = false
-      ..color = _kCropGridColor.withOpacity(_kCropGridColor.opacity * active)
+      ..color = gridColor.withOpacity(gridColor.opacity * active)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
