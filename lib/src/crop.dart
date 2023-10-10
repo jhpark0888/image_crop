@@ -493,7 +493,7 @@ class CropState extends State<Crop> with TickerProviderStateMixin {
         // 처음 이미지를 선택 했을 때의 이미지 비율
         double imageAspectRatio = widget.isExpandImageInit
             // 영역에 맞게 확장
-            ? 1
+            ? widget.aspectRatio ?? 1
             // 이미지 비율 만큼
             : _imageAspectRatio > 1.0
                 ? maxCropAspectRatio
